@@ -1,0 +1,11 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@config "../tailwind.config.js";
+
+@layer base {
+  body {
+    background-color: theme('colors.base');
+    color: theme('colors.primary');
+    font-family: theme('fontFamily.sans');
+  }
+}
