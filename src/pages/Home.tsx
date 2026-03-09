@@ -2,12 +2,13 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../services/api'
 import SubjectCard from '../components/SubjectCard'
 import { useEffect, useState } from 'react'
+import type { Chapter } from '../types/interface'
 
 interface Subject {
   _id: string
   subName: string
   desc: string
-  chapters: string[]
+  chapters: Chapter[]
 }
 
 export default function Home() {
@@ -59,6 +60,7 @@ export default function Home() {
         {subjects.map((subject) => (
           <SubjectCard
             key={subject._id}
+            _id={subject._id}
             subName={subject.subName}
             desc={subject.desc}
             chapters={subject.chapters}
