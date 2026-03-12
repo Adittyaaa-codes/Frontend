@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { api } from '../services/api'
 
 type Message = {
     id: string;
@@ -10,16 +12,86 @@ type Message = {
 };
 
 export default function ChatApp() {
+    const { subjectId } = useParams<{ subjectId: string }>();
+    const [choice,setChoice] = useState('explain');
+    const [searchParams] = useSearchParams();
+    const chapterId = searchParams.get('chapterId');
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [status, setStatus] = useState<'ready' | 'thinking'>('ready');
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const chatIdRef = useRef<string | null>(null); 
+    const [showDropdown, setShowDropdown] = useState(false);
+
+    useEffect(() => {
+        const initChat = async () => {
+            try {
+                if (!subjectId) return;
+
+                const params = new URLSearchParams();
+                if (subjectId) params.append('subjectId', subjectId);
+                // Only append chapterId if it's truthy and not "null"
+                if (chapterId && chapterId !== 'null') {
+                    params.append('chapterId', chapterId);
+                }
+
+                const { data: existingData } = await api.get(`/chats/get-all?${params.toString()}`);
+                
+                if (existingData?.data && existingData.data.length > 0) {
+                    const currentChatId = existingData.data[0]._id;
+                    chatIdRef.current = currentChatId;
+
+                    const { data: messagesData } = await api.get(`/chats/${currentChatId}/messages`);
+                    if (messagesData?.data?.length > 0) {
+                        const loadedMessages: Message[] = messagesData.data.map((msg: any) => ({
+                            id: msg._id,
+                            role: msg.role as 'user' | 'assistant',
+                            parts: [{ type: 'text', text: msg.content }]
+                        }));
+                        setMessages(loadedMessages);
+                    }
+                } else {
+                    const { data } = await api.post('/chats/create', {
+                        subjectId,
+                        chapterId: chapterId && chapterId !== 'null' ? chapterId : null,
+                    });
+                    chatIdRef.current = data.data._id;
+                }
+            } catch (err) {
+                console.error('Failed to initialize chat session:', err);
+            }
+        };
+        initChat();
+    }, [subjectId, chapterId]);
+
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ 
             behavior: status === 'thinking' ? 'auto' : 'smooth' 
         });
     }, [messages, status]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setShowDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+
+    // Helper: save a single message (user or assistant) to MongoDB
+    const saveMessageToDB = async (role: 'user' | 'assistant', content: string) => {
+        if (!chatIdRef.current) return;
+        try {
+            await api.post(`/chats/${chatIdRef.current}/message`, { role, content });
+        } catch (err) {
+            console.error(`Failed to save ${role} message:`, err);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -35,6 +107,7 @@ export default function ChatApp() {
         };
 
         const aiMsgId = (Date.now() + 1).toString();
+    
         const aiMsg: Message = {
             id: aiMsgId,
             role: 'assistant',
@@ -45,11 +118,15 @@ export default function ChatApp() {
         setMessages(prev => [...prev, userMsg, aiMsg]);
         setStatus('thinking');
 
+        // Save user message to DB (fire and forget, don't block UI)
+        saveMessageToDB('user', text);
+
         try {
-            const response = await fetch('http://localhost:8000/chat/qa', {
+            const response = await fetch(`http://localhost:8000/chat/${choice}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
                 },
                 body: JSON.stringify({
                     query: text,
@@ -59,6 +136,9 @@ export default function ChatApp() {
                     })),
                 }),
             });
+            
+            console.log('All localStorage keys:', Object.keys(localStorage))
+            console.log('Token value:', localStorage.getItem('accessToken'))
 
             if (!response.body) throw new Error('No stream available');
 
@@ -82,12 +162,17 @@ export default function ChatApp() {
                     )
                 );
             }
+
+            // Stream complete — save the full AI response to DB
+            saveMessageToDB('assistant', aiText);
+
         } catch (error) {
             console.error('Error fetching chat response:', error);
+            const errorText = 'Sorry, there was an error connecting to the server.';
             setMessages(prev =>
                 prev.map(msg =>
                     msg.id === aiMsgId
-                        ? { ...msg, parts: [{ type: 'text', text: 'Sorry, there was an error connecting to the server.' }] }
+                        ? { ...msg, parts: [{ type: 'text', text: errorText }] }
                         : msg
                 )
             );
@@ -95,6 +180,7 @@ export default function ChatApp() {
             setStatus('ready');
         }
     };
+
 
     return (
     <div className="min-h-screen bg-base flex flex-col font-sans text-primary">
@@ -180,6 +266,38 @@ export default function ChatApp() {
                         placeholder="Ask me anything about your notes..."
                         className="flex-1 rounded-xl bg-base border border-subtle px-4 py-3 text-sm text-primary focus:border-accent outline-none transition-colors"
                     />
+                    <div className="relative" ref={dropdownRef}>
+                        <button
+                            type="button"
+                            onClick={() => setShowDropdown(!showDropdown)}
+                            disabled={status !== 'ready'}
+                            className="h-full px-6 py-3 rounded-xl bg-surface border border-subtle hover:border-accent text-primary text-sm font-medium transition-all flex items-center gap-2"
+                        >
+                            <span>{choice === 'explain' ? '✨ Explain' : '❓ Q/A'}</span>
+                            <span className={`text-[10px] transition-transform ${showDropdown ? 'rotate-180' : ''}`}>▲</span>
+                        </button>
+
+                        {showDropdown && (
+                            <div className="absolute bottom-full left-0 mb-2 w-72 bg-surface border border-subtle rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                <button
+                                    type="button"
+                                    onClick={() => { setChoice('explain'); setShowDropdown(false); }}
+                                    className={`w-full text-left p-3 rounded-lg transition-colors ${choice === 'explain' ? 'bg-accent/10 border border-accent/20' : 'hover:bg-base'}`}
+                                >
+                                    <div className="font-medium text-sm text-primary">Explain</div>
+                                    <div className="text-[11px] text-muted mt-0.5">Choose it if you want explanation from your contents</div>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setChoice('qa'); setShowDropdown(false); }}
+                                    className={`w-full text-left p-3 rounded-lg mt-1 transition-colors ${choice === 'qa' ? 'bg-accent/10 border border-accent/20' : 'hover:bg-base'}`}
+                                >
+                                    <div className="font-medium text-sm text-primary">Q/A</div>
+                                    <div className="text-[11px] text-muted mt-0.5">Select it if you want question answers from your materials</div>
+                                </button>
+                            </div>
+                        )}
+                    </div>
                     <button
                         type="submit"
                         disabled={status !== 'ready' || !input.trim()}

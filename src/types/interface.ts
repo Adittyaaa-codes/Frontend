@@ -6,7 +6,7 @@ export interface ApiResponse<T> {
 
 export interface Chapter {
   _id: string
-  chapterName: string
+  chName: string
   subject: string
 }
 

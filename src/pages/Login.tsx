@@ -49,6 +49,7 @@ export default function Login() {
       }
 
       localStorage.setItem('user', JSON.stringify(data.data.user))
+      localStorage.setItem('accessToken', data.data.accessToken)
 
       navigate('/home')
     } catch (err) {
