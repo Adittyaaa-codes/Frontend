@@ -122,7 +122,8 @@ export default function ChatApp() {
         saveMessageToDB('user', text);
 
         try {
-            const AI_URL = import.meta.env.VITE_AI_URL || 'http://localhost:8000';
+            // Use production URL directly if env var is missing during build
+            const AI_URL = import.meta.env.VITE_AI_URL || 'https://ai-4b5p.onrender.com';
             const response = await fetch(`${AI_URL}/chat/${choice}`, {
                 method: 'POST',
                 headers: {
