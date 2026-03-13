@@ -138,8 +138,8 @@ export default function ChatApp() {
                 }),
             });
             
-            console.log('All localStorage keys:', Object.keys(localStorage))
-            console.log('Token value:', localStorage.getItem('accessToken'))
+            // console.log('All localStorage keys:', Object.keys(localStorage))
+            // console.log('Token value:', localStorage.getItem('accessToken'))
 
             if (!response.body) throw new Error('No stream available');
 
