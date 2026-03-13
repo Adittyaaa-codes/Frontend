@@ -122,7 +122,8 @@ export default function ChatApp() {
         saveMessageToDB('user', text);
 
         try {
-            const response = await fetch(`http://localhost:8000/chat/${choice}`, {
+            const AI_URL = import.meta.env.VITE_AI_URL || 'http://localhost:8000';
+            const response = await fetch(`${AI_URL}/chat/${choice}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
