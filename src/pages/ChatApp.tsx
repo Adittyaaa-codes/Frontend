@@ -13,7 +13,7 @@ type Message = {
 
 export default function ChatApp() {
     const { subjectId } = useParams<{ subjectId: string }>();
-    const [choice,setChoice] = useState('explain');
+    const [choice, setChoice] = useState('explain');
     const [searchParams] = useSearchParams();
     const chapterId = searchParams.get('chapterId');
     const [messages, setMessages] = useState<Message[]>([]);
@@ -21,7 +21,7 @@ export default function ChatApp() {
     const [status, setStatus] = useState<'ready' | 'thinking'>('ready');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const chatIdRef = useRef<string | null>(null); 
+    const chatIdRef = useRef<string | null>(null);
     const [showDropdown, setShowDropdown] = useState(false);
 
     useEffect(() => {
@@ -37,7 +37,7 @@ export default function ChatApp() {
                 }
 
                 const { data: existingData } = await api.get(`/chats/get-all?${params.toString()}`);
-                
+
                 if (existingData?.data && existingData.data.length > 0) {
                     const currentChatId = existingData.data[0]._id;
                     chatIdRef.current = currentChatId;
@@ -67,8 +67,8 @@ export default function ChatApp() {
 
 
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ 
-            behavior: status === 'thinking' ? 'auto' : 'smooth' 
+        messagesEndRef.current?.scrollIntoView({
+            behavior: status === 'thinking' ? 'auto' : 'smooth'
         });
     }, [messages, status]);
 
@@ -107,7 +107,7 @@ export default function ChatApp() {
         };
 
         const aiMsgId = (Date.now() + 1).toString();
-    
+
         const aiMsg: Message = {
             id: aiMsgId,
             role: 'assistant',
@@ -122,8 +122,7 @@ export default function ChatApp() {
         saveMessageToDB('user', text);
 
         try {
-            // Use production URL directly if env var is missing during build
-            const AI_URL = import.meta.env.VITE_AI_URL || 'https://ai-4b5p.onrender.com';
+            const AI_URL = import.meta.env.VITE_AI_URL ;
             const response = await fetch(`${AI_URL}/chat/${choice}`, {
                 method: 'POST',
                 headers: {
@@ -138,9 +137,9 @@ export default function ChatApp() {
                     })),
                 }),
             });
-            
-            // console.log('All localStorage keys:', Object.keys(localStorage))
-            // console.log('Token value:', localStorage.getItem('accessToken'))
+
+            console.log('All localStorage keys:', Object.keys(localStorage))
+            console.log('Token value:', localStorage.getItem('accessToken'))
 
             if (!response.body) throw new Error('No stream available');
 
@@ -185,131 +184,129 @@ export default function ChatApp() {
 
 
     return (
-    <div className="min-h-screen bg-base flex flex-col font-sans text-primary">
-        {/* Header */}
-        <header className="border-b border-subtle bg-surface px-6 py-4 flex items-center justify-between">
-            <h1 className="text-xl font-semibold tracking-tight">StudyBot Chat</h1>
-            <div className="text-sm text-muted">
-                {status === 'ready' ? 'Ready' : 'Thinking...'}
-            </div>
-        </header>
-
-        {/* Messages Area */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-            {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-muted">
-                    <p className="text-sm">No messages yet. Start a conversation!</p>
+        <div className="min-h-screen bg-base flex flex-col font-sans text-primary">
+            {/* Header */}
+            <header className="border-b border-subtle bg-surface px-6 py-4 flex items-center justify-between">
+                <h1 className="text-xl font-semibold tracking-tight">StudyBot Chat</h1>
+                <div className="text-sm text-muted">
+                    {status === 'ready' ? 'Ready' : 'Thinking...'}
                 </div>
-            ) : (
-                <div className="max-w-4xl mx-auto w-full space-y-6">
-                    {messages.map((message, index) => (
-                        <div
-                            key={index}
-                            className={`flex flex-col max-w-[80%] ${
-                                message.role === 'user' ? 'ml-auto items-end' : 'mr-auto items-start'
-                            }`}
-                        >
-                            <span className="text-xs font-medium text-muted mb-1.5 px-1">
-                                {message.role === 'user' ? 'You' : 'StudyBot'}
-                            </span>
-                            <div
-                                className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                                    message.role === 'user'
-                                        ? 'bg-accent text-white rounded-br-sm'
-                                        : 'bg-surface border border-subtle text-primary rounded-bl-sm'
-                                }`}
-                            >
-                                {message.parts.map((part, partIndex) =>
-                                    part.type === 'text' ? (
-                                        message.role === 'user' ? (
-                                            <span key={partIndex}>{part.text}</span>
-                                        ) : (
-                                            <ReactMarkdown
-                                                key={partIndex}
-                                                components={{
-                                                    code({ className, children }) {
-                                                        const language = className?.replace('language-', '') || 'text'
-                                                        return (
-                                                            <SyntaxHighlighter style={oneDark} language={language} PreTag="div">
-                                                                {String(children).trim()}
-                                                            </SyntaxHighlighter>
-                                                        )
-                                                    },
-                                                    p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                                                    ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
-                                                    ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
-                                                    strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
-                                                    h1: ({ children }) => <h1 className="text-lg font-bold text-white mb-2">{children}</h1>,
-                                                    h2: ({ children }) => <h2 className="text-base font-bold text-white mb-2">{children}</h2>,
-                                                    h3: ({ children }) => <h3 className="text-sm font-bold text-white mb-1">{children}</h3>,
-                                                }}
-                                            >
-                                                {part.text}
-                                            </ReactMarkdown>
-                                        )
-                                    ) : null
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                    <div ref={messagesEndRef} />
-                </div>
-            )}
-        </main>
+            </header>
 
-        {/* Input Area */}
-        <footer className="border-t border-subtle bg-surface p-4">
-            <div className="max-w-4xl mx-auto">
-                <form onSubmit={handleSubmit} className="flex gap-3">
-                    <input
-                        value={input}
-                        onChange={e => setInput(e.target.value)}
-                        disabled={status !== 'ready'}
-                        placeholder="Ask me anything about your notes..."
-                        className="flex-1 rounded-xl bg-base border border-subtle px-4 py-3 text-sm text-primary focus:border-accent outline-none transition-colors"
-                    />
-                    <div className="relative" ref={dropdownRef}>
-                        <button
-                            type="button"
-                            onClick={() => setShowDropdown(!showDropdown)}
-                            disabled={status !== 'ready'}
-                            className="h-full px-6 py-3 rounded-xl bg-surface border border-subtle hover:border-accent text-primary text-sm font-medium transition-all flex items-center gap-2"
-                        >
-                            <span>{choice === 'explain' ? '✨ Explain' : '❓ Q/A'}</span>
-                            <span className={`text-[10px] transition-transform ${showDropdown ? 'rotate-180' : ''}`}>▲</span>
-                        </button>
-
-                        {showDropdown && (
-                            <div className="absolute bottom-full left-0 mb-2 w-72 bg-surface border border-subtle rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                                <button
-                                    type="button"
-                                    onClick={() => { setChoice('explain'); setShowDropdown(false); }}
-                                    className={`w-full text-left p-3 rounded-lg transition-colors ${choice === 'explain' ? 'bg-accent/10 border border-accent/20' : 'hover:bg-base'}`}
-                                >
-                                    <div className="font-medium text-sm text-primary">Explain</div>
-                                    <div className="text-[11px] text-muted mt-0.5">Choose it if you want explanation from your contents</div>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => { setChoice('qa'); setShowDropdown(false); }}
-                                    className={`w-full text-left p-3 rounded-lg mt-1 transition-colors ${choice === 'qa' ? 'bg-accent/10 border border-accent/20' : 'hover:bg-base'}`}
-                                >
-                                    <div className="font-medium text-sm text-primary">Q/A</div>
-                                    <div className="text-[11px] text-muted mt-0.5">Select it if you want question answers from your materials</div>
-                                </button>
-                            </div>
-                        )}
+            {/* Messages Area */}
+            <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+                {messages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-muted">
+                        <p className="text-sm">No messages yet. Start a conversation!</p>
                     </div>
-                    <button
-                        type="submit"
-                        disabled={status !== 'ready' || !input.trim()}
-                        className="px-6 py-3 rounded-xl bg-accent hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium transition-colors"
-                    >
-                        Send
-                    </button>
-                </form>
-            </div>
-        </footer>
-    </div>
-)
+                ) : (
+                    <div className="max-w-4xl mx-auto w-full space-y-6">
+                        {messages.map((message, index) => (
+                            <div
+                                key={index}
+                                className={`flex flex-col max-w-[80%] ${message.role === 'user' ? 'ml-auto items-end' : 'mr-auto items-start'
+                                    }`}
+                            >
+                                <span className="text-xs font-medium text-muted mb-1.5 px-1">
+                                    {message.role === 'user' ? 'You' : 'StudyBot'}
+                                </span>
+                                <div
+                                    className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${message.role === 'user'
+                                            ? 'bg-accent text-white rounded-br-sm'
+                                            : 'bg-surface border border-subtle text-primary rounded-bl-sm'
+                                        }`}
+                                >
+                                    {message.parts.map((part, partIndex) =>
+                                        part.type === 'text' ? (
+                                            message.role === 'user' ? (
+                                                <span key={partIndex}>{part.text}</span>
+                                            ) : (
+                                                <ReactMarkdown
+                                                    key={partIndex}
+                                                    components={{
+                                                        code({ className, children }) {
+                                                            const language = className?.replace('language-', '') || 'text'
+                                                            return (
+                                                                <SyntaxHighlighter style={oneDark} language={language} PreTag="div">
+                                                                    {String(children).trim()}
+                                                                </SyntaxHighlighter>
+                                                            )
+                                                        },
+                                                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                                                        ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
+                                                        ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
+                                                        strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                                                        h1: ({ children }) => <h1 className="text-lg font-bold text-white mb-2">{children}</h1>,
+                                                        h2: ({ children }) => <h2 className="text-base font-bold text-white mb-2">{children}</h2>,
+                                                        h3: ({ children }) => <h3 className="text-sm font-bold text-white mb-1">{children}</h3>,
+                                                    }}
+                                                >
+                                                    {part.text}
+                                                </ReactMarkdown>
+                                            )
+                                        ) : null
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                        <div ref={messagesEndRef} />
+                    </div>
+                )}
+            </main>
+
+            {/* Input Area */}
+            <footer className="border-t border-subtle bg-surface p-4">
+                <div className="max-w-4xl mx-auto">
+                    <form onSubmit={handleSubmit} className="flex gap-3">
+                        <input
+                            value={input}
+                            onChange={e => setInput(e.target.value)}
+                            disabled={status !== 'ready'}
+                            placeholder="Ask me anything about your notes..."
+                            className="flex-1 rounded-xl bg-base border border-subtle px-4 py-3 text-sm text-primary focus:border-accent outline-none transition-colors"
+                        />
+                        <div className="relative" ref={dropdownRef}>
+                            <button
+                                type="button"
+                                onClick={() => setShowDropdown(!showDropdown)}
+                                disabled={status !== 'ready'}
+                                className="h-full px-6 py-3 rounded-xl bg-surface border border-subtle hover:border-accent text-primary text-sm font-medium transition-all flex items-center gap-2"
+                            >
+                                <span>{choice === 'explain' ? '✨ Explain' : '❓ Q/A'}</span>
+                                <span className={`text-[10px] transition-transform ${showDropdown ? 'rotate-180' : ''}`}>▲</span>
+                            </button>
+
+                            {showDropdown && (
+                                <div className="absolute bottom-full left-0 mb-2 w-72 bg-surface border border-subtle rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setChoice('explain'); setShowDropdown(false); }}
+                                        className={`w-full text-left p-3 rounded-lg transition-colors ${choice === 'explain' ? 'bg-accent/10 border border-accent/20' : 'hover:bg-base'}`}
+                                    >
+                                        <div className="font-medium text-sm text-primary">Explain</div>
+                                        <div className="text-[11px] text-muted mt-0.5">Choose it if you want explanation from your contents</div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setChoice('qa'); setShowDropdown(false); }}
+                                        className={`w-full text-left p-3 rounded-lg mt-1 transition-colors ${choice === 'qa' ? 'bg-accent/10 border border-accent/20' : 'hover:bg-base'}`}
+                                    >
+                                        <div className="font-medium text-sm text-primary">Q/A</div>
+                                        <div className="text-[11px] text-muted mt-0.5">Select it if you want question answers from your materials</div>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={status !== 'ready' || !input.trim()}
+                            className="px-6 py-3 rounded-xl bg-accent hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium transition-colors"
+                        >
+                            Send
+                        </button>
+                    </form>
+                </div>
+            </footer>
+        </div>
+    )
 }
