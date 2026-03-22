@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_BACKEND_URL,
+  baseURL: 'https://backend-xboi.onrender.com/api',          
   withCredentials: true,    
 })
 
