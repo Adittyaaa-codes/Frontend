@@ -57,6 +57,36 @@ export default function UploadPage() {
     setFiles(prev => prev.filter((_, i) => i !== index))
   }
 
+  const uploadWithRetry = async (
+    url: string,
+    formData: FormData,
+    maxRetries = 3
+  ) => {
+    let attempt = 0;
+    while (attempt < maxRetries) {
+      try {
+        return await api.post(url, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (progressEvent) => {
+            const percentCompleted = Math.round(
+              (progressEvent.loaded * 100) / (progressEvent.total || 1)
+            );
+            setProgress(percentCompleted);
+          },
+        });
+      } catch (err: any) {
+        if (err.response?.status === 429 && attempt < maxRetries - 1) {
+          const delay = 3000 * Math.pow(2, attempt); // 3s, 6s, 12s
+          setMessage(`Server is busy. Retrying in ${delay / 1000}s... (attempt ${attempt + 2}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          attempt++;
+        } else {
+          throw err;
+        }
+      }
+    }
+  };
+
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedSubject || !selectedChapter || files.length === 0) {
@@ -72,15 +102,12 @@ export default function UploadPage() {
       setStatus('uploading')
       setProgress(20)
       
-      const response = await api.post(`/upload/docs/${selectedSubject}/${selectedChapter}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (progressEvent) => {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
-            setProgress(percentCompleted);
-        }
-      })
+      const response = await uploadWithRetry(
+        `/upload/docs/${selectedSubject}/${selectedChapter}`,
+        formData
+      );
 
-      if (response.data.success) {
+      if (response?.data.success) {
         setStatus('success')
         setMessage('Your materials have been successfully indexed and are ready for study!')
         setFiles([])
@@ -90,7 +117,11 @@ export default function UploadPage() {
     } catch (err: any) {
       console.error(err)
       setStatus('error')
-      setMessage(err.response?.data?.message || 'Upload failed. Please try again.')
+      if (err.response?.status === 429) {
+        setMessage('Server is temporarily overloaded. Please wait a minute and try again.')
+      } else {
+        setMessage(err.response?.data?.message || 'Upload failed. Please try again.')
+      }
     }
   }
 
