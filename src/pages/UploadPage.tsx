@@ -97,13 +97,15 @@ export default function UploadPage() {
 
     const formData = new FormData()
     files.forEach(file => formData.append('files', file))
+    formData.append('subject', selectedSubject)
+    formData.append('chapter', selectedChapter)
 
     try {
       setStatus('uploading')
       setProgress(20)
       
       const response = await uploadWithRetry(
-        `/upload/docs/${selectedSubject}/${selectedChapter}`,
+        `/upload/upload_docs`,
         formData
       );
 
