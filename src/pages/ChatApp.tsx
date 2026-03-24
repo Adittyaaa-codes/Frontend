@@ -121,16 +121,18 @@ export default function ChatApp() {
         // Save user message to DB (fire and forget, don't block UI)
         saveMessageToDB('user', text);
 
+        const type = choice === 'explain' ? "Explain briefly" : "Generate Question and Answers";
+
         try {
             const AI_URL = import.meta.env.VITE_AI_URL ;
-            const response = await fetch(`${AI_URL}/chat/${choice}`, {
+            const response = await fetch(`${AI_URL}/chat`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
                 },
                 body: JSON.stringify({
-                    query: text,
+                    query: `${type}: ${text}`,
                     messages: messages.map(m => ({
                         role: m.role,
                         content: m.parts[0].text,
