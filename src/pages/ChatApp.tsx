@@ -143,8 +143,7 @@ export default function ChatApp() {
             console.log('All localStorage keys:', Object.keys(localStorage))
             console.log('Token value:', localStorage.getItem('accessToken'))
 
-            const data = await response.json();
-            const aiText = data?.answer || "No response received";
+            const aiText = await response.text();
 
             // Update the AI message with the final text
             setMessages(prev =>
