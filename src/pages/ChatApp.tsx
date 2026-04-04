@@ -144,7 +144,7 @@ export default function ChatApp() {
             console.log('Token value:', localStorage.getItem('accessToken'))
 
             const data = await response.json();
-            const aiText = data?.answer?.text || data?.answer || "No response received";
+            const aiText = data?.answer || "No response received";
 
             // Update the AI message with the final text
             setMessages(prev =>
