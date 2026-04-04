@@ -143,29 +143,18 @@ export default function ChatApp() {
             console.log('All localStorage keys:', Object.keys(localStorage))
             console.log('Token value:', localStorage.getItem('accessToken'))
 
-            if (!response.body) throw new Error('No stream available');
+            const data = await response.json();
+            const aiText = data?.answer?.text || data?.answer || "No response received";
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let aiText = '';
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value, { stream: true });
-                aiText += chunk;
-
-                // Update the AI message in real-time
-                setMessages(prev =>
-                    prev.map(msg =>
-                        msg.id === aiMsgId
-                            ? { ...msg, parts: [{ type: 'text', text: aiText }] }
-                            : msg
-                    )
-                );
-            }
-
+            // Update the AI message with the final text
+            setMessages(prev =>
+                prev.map(msg =>
+                    msg.id === aiMsgId
+                        ? { ...msg, parts: [{ type: 'text', text: aiText }] }
+                        : msg
+                )
+            );
+            
             // Stream complete — save the full AI response to DB
             saveMessageToDB('assistant', aiText);
 
