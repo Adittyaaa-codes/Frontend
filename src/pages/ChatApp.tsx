@@ -5,51 +5,194 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { api } from '../services/api'
 
+/* ─────────────────────────────────────────────────────────── types */
 type Message = {
     id: string;
     role: 'user' | 'assistant';
     parts: { type: 'text'; text: string }[];
+    steps?: AgentStep[];
 };
 
+type AgentStep = {
+    id: string;
+    type: 'rag_search' | 'web_search' | 'thinking';
+    status: 'running' | 'done' | 'error';
+    label: string;
+    detail?: string;
+    ragas?: {
+        score: number;
+        context_precision: number;
+        faithfulness: number;
+        verdict: string;
+    };
+};
+
+/* ─────────────────────────────────────────────────────────── step icons */
+function StepIcon({ type, status }: { type: AgentStep['type']; status: AgentStep['status'] }) {
+    if (status === 'running') {
+        return (
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full">
+                <svg className="animate-spin w-4 h-4 text-accent-light" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+            </span>
+        );
+    }
+    if (status === 'error') {
+        return <span className="text-danger text-sm">✗</span>;
+    }
+    if (type === 'rag_search') return <span className="text-success text-sm">📚</span>;
+    if (type === 'web_search') return <span className="text-accent-light text-sm">🌐</span>;
+    return <span className="text-success text-sm">✓</span>;
+}
+
+/* ─────────────────────────────────────────────────────────── RAG Evaluation badge */
+function RagEvalBadge({ ragas }: { ragas: NonNullable<AgentStep['ragas']> }) {
+    const pct      = Math.round(ragas.score * 100);
+    const isStrong = ragas.score >= 0.7;
+    const isOk     = ragas.score >= 0.5;
+    const color    = isStrong
+        ? 'text-success border-success/30 bg-success/10'
+        : isOk
+            ? 'text-warning border-warning/30 bg-warning/10'
+            : 'text-danger border-danger/30 bg-danger/10';
+    const icon  = isStrong ? '✦' : isOk ? '◈' : '⚠';
+    const quality = isStrong ? 'Strong' : isOk ? 'Adequate' : 'Weak';
+
+    return (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-semibold tracking-wide ${color}`}>
+                <span>{icon}</span>
+                <span>RAG Evaluation Score · {quality} · {pct}%</span>
+            </span>
+            <span className="text-[10px] text-muted-2">
+                Precision&nbsp;<span className="text-muted">{Math.round(ragas.context_precision * 100)}%</span>
+                &nbsp;·&nbsp;
+                Faithfulness&nbsp;<span className="text-muted">{Math.round(ragas.faithfulness * 100)}%</span>
+            </span>
+        </div>
+    );
+}
+
+/* ─────────────────────────────────────────────────────────── research panel */
+function ResearchPanel({ steps }: { steps: AgentStep[] }) {
+    const [collapsed, setCollapsed] = useState(false);
+    const isRunning = steps.some(s => s.status === 'running');
+
+    if (steps.length === 0) return null;
+
+    return (
+        <div className="mb-3 rounded-2xl border border-subtle bg-surface-2/80 backdrop-blur-sm overflow-hidden text-sm shadow-card">
+            <button
+                onClick={() => setCollapsed(c => !c)}
+                className="w-full flex items-center gap-2.5 px-4 py-3 text-left hover:bg-white/[0.03] transition-colors"
+            >
+                {isRunning ? (
+                    <svg className="animate-spin w-3.5 h-3.5 text-accent-light flex-shrink-0" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                ) : (
+                    <span className="text-accent-light text-xs flex-shrink-0">✦</span>
+                )}
+                <span className="text-muted font-medium text-xs flex-1">
+                    {isRunning ? 'Deep researching…' : `Research complete · ${steps.length} step${steps.length !== 1 ? 's' : ''}`}
+                </span>
+                <span className="text-muted-2 text-xs">{collapsed ? '▸' : '▾'}</span>
+            </button>
+
+            {!collapsed && (
+                <div className="px-4 pb-4 space-y-3 border-t border-subtle/40">
+                    {steps.map(step => (
+                        <div key={step.id} className="flex items-start gap-3 pt-3">
+                            <div className="mt-0.5 flex-shrink-0 w-5 flex justify-center">
+                                <StepIcon type={step.type} status={step.status} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-primary/90 text-xs font-medium">{step.label}</p>
+                                {step.detail && (
+                                    <p className="text-muted text-[11px] mt-0.5 leading-relaxed">{step.detail}</p>
+                                )}
+                                {step.type === 'rag_search' && step.status === 'done' && step.ragas && (
+                                    <RagEvalBadge ragas={step.ragas} />
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+/* ─────────────────────────────────────────────────────────── cursor */
+function BlinkingCursor() {
+    return <span className="inline-block w-0.5 h-4 bg-accent-light ml-0.5 align-middle animate-pulse" />;
+}
+
+/* ─────────────────────────────────────────────────────────── markdown */
+const MarkdownComponents = {
+    code({ className, children }: any) {
+        const language = className?.replace('language-', '') || 'text'
+        return (
+            <SyntaxHighlighter style={oneDark} language={language} PreTag="div">
+                {String(children).trim()}
+            </SyntaxHighlighter>
+        )
+    },
+    p: ({ children }: any) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+    ul: ({ children }: any) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
+    ol: ({ children }: any) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
+    strong: ({ children }: any) => <strong className="font-semibold text-white">{children}</strong>,
+    h1: ({ children }: any) => <h1 className="text-lg font-bold text-white mb-2">{children}</h1>,
+    h2: ({ children }: any) => <h2 className="text-base font-bold text-white mb-2">{children}</h2>,
+    h3: ({ children }: any) => <h3 className="text-sm font-bold text-white mb-1">{children}</h3>,
+}
+
+/* ─────────────────────────────────────────────────────────── main */
 export default function ChatApp() {
     const { subjectId } = useParams<{ subjectId: string }>();
-    const [choice, setChoice] = useState('explain');
     const [searchParams] = useSearchParams();
     const chapterId = searchParams.get('chapterId');
+    const subjectName  = searchParams.get('subjectName') ?? 'Subject';
+    const chapterName  = searchParams.get('chapterName') ?? null;
+
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [status, setStatus] = useState<'ready' | 'thinking'>('ready');
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const dropdownRef = useRef<HTMLDivElement>(null);
     const chatIdRef = useRef<string | null>(null);
-    const [showDropdown, setShowDropdown] = useState(false);
+    const abortRef = useRef<AbortController | null>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+    /* init chat session */
     useEffect(() => {
+        setMessages([]);
+        chatIdRef.current = null;
+
         const initChat = async () => {
             try {
                 if (!subjectId) return;
 
                 const params = new URLSearchParams();
                 if (subjectId) params.append('subjectId', subjectId);
-                // Only append chapterId if it's truthy and not "null"
-                if (chapterId && chapterId !== 'null') {
-                    params.append('chapterId', chapterId);
-                }
+                if (chapterId && chapterId !== 'null') params.append('chapterId', chapterId);
 
                 const { data: existingData } = await api.get(`/chats/get-all?${params.toString()}`);
 
-                if (existingData?.data && existingData.data.length > 0) {
+                if (existingData?.data?.length > 0) {
                     const currentChatId = existingData.data[0]._id;
                     chatIdRef.current = currentChatId;
-
                     const { data: messagesData } = await api.get(`/chats/${currentChatId}/messages`);
                     if (messagesData?.data?.length > 0) {
-                        const loadedMessages: Message[] = messagesData.data.map((msg: any) => ({
+                        const loaded: Message[] = messagesData.data.map((msg: any) => ({
                             id: msg._id,
                             role: msg.role as 'user' | 'assistant',
-                            parts: [{ type: 'text', text: msg.content }]
+                            parts: [{ type: 'text', text: msg.content }],
+                            steps: [],
                         }));
-                        setMessages(loadedMessages);
+                        setMessages(loaded);
                     }
                 } else {
                     const { data } = await api.post('/chats/create', {
@@ -65,25 +208,19 @@ export default function ChatApp() {
         initChat();
     }, [subjectId, chapterId]);
 
-
+    /* auto scroll */
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({
-            behavior: status === 'thinking' ? 'auto' : 'smooth'
-        });
+        messagesEndRef.current?.scrollIntoView({ behavior: status === 'thinking' ? 'auto' : 'smooth' });
     }, [messages, status]);
 
+    /* auto-grow textarea */
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setShowDropdown(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+        }
+    }, [input]);
 
-
-    // Helper: save a single message (user or assistant) to MongoDB
     const saveMessageToDB = async (role: 'user' | 'assistant', content: string) => {
         if (!chatIdRef.current) return;
         try {
@@ -93,6 +230,14 @@ export default function ChatApp() {
         }
     };
 
+    const updateSteps = (msgId: string, updater: (prev: AgentStep[]) => AgentStep[]) => {
+        setMessages(prev => prev.map(m => m.id === msgId ? { ...m, steps: updater(m.steps ?? []) } : m));
+    };
+
+    const updateText = (msgId: string, text: string) => {
+        setMessages(prev => prev.map(m => m.id === msgId ? { ...m, parts: [{ type: 'text', text }] } : m));
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!input.trim() || status !== 'ready') return;
@@ -100,141 +245,251 @@ export default function ChatApp() {
         const text = input.trim();
         setInput('');
 
-        const userMsg: Message = {
-            id: Date.now().toString(),
-            role: 'user',
-            parts: [{ type: 'text', text }],
-        };
-
+        const userMsg: Message = { id: Date.now().toString(), role: 'user', parts: [{ type: 'text', text }] };
         const aiMsgId = (Date.now() + 1).toString();
+        const aiMsg: Message = { id: aiMsgId, role: 'assistant', parts: [{ type: 'text', text: '' }], steps: [] };
 
-        const aiMsg: Message = {
-            id: aiMsgId,
-            role: 'assistant',
-            parts: [{ type: 'text', text: '' }],
-        };
-
-        // Add user message immediately, and an empty AI message placeholder
         setMessages(prev => [...prev, userMsg, aiMsg]);
         setStatus('thinking');
-
-        // Save user message to DB (fire and forget, don't block UI)
         saveMessageToDB('user', text);
 
-        const type = choice === 'explain' ? "Explain briefly" : "Generate Question and Answers";
+        const controller = new AbortController();
+        abortRef.current = controller;
 
         try {
-            const AI_URL = import.meta.env.VITE_AI_URL ;
-            const response = await fetch(`${AI_URL}/chat`, {
+            const AI_URL = import.meta.env.VITE_AI_URL;
+            const res = await fetch(`${AI_URL}/chat`, {
                 method: 'POST',
+                signal: controller.signal,
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
                 },
                 body: JSON.stringify({
-                    query: `${type}: ${text}`,
-                    messages: messages.map(m => ({
-                        role: m.role,
-                        content: m.parts[0].text,
-                    })),
+                    query: text,
+                    subject: subjectId,
+                    chapter: chapterId && chapterId !== 'null' ? chapterId : null,
+                    messages: messages.map(m => ({ role: m.role, content: m.parts[0].text })),
                 }),
             });
 
-            console.log('All localStorage keys:', Object.keys(localStorage))
-            console.log('Token value:', localStorage.getItem('accessToken'))
+            if (!res.ok) {
+                const err = await res.text();
+                throw new Error(`Server error ${res.status}: ${err}`);
+            }
 
-            const aiText = await response.text();
+            const reader = res.body!.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let streamedText = '';
+            const stepMap = new Map<string, string>();
 
-            // Update the AI message with the final text
-            setMessages(prev =>
-                prev.map(msg =>
-                    msg.id === aiMsgId
-                        ? { ...msg, parts: [{ type: 'text', text: aiText }] }
-                        : msg
-                )
-            );
-            
-            // Stream complete — save the full AI response to DB
-            saveMessageToDB('assistant', aiText);
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
 
-        } catch (error) {
-            console.error('Error fetching chat response:', error);
-            const errorText = 'Sorry, there was an error connecting to the server.';
-            setMessages(prev =>
-                prev.map(msg =>
-                    msg.id === aiMsgId
-                        ? { ...msg, parts: [{ type: 'text', text: errorText }] }
-                        : msg
-                )
-            );
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() ?? '';
+
+                for (const line of lines) {
+                    if (!line.startsWith('data:')) continue;
+                    const raw = line.slice(5).trim();
+                    if (!raw) continue;
+
+                    let event: any;
+                    try { event = JSON.parse(raw); } catch { continue; }
+
+                    switch (event.type) {
+
+                        case 'tool_call': {
+                            const tool = event.tool as AgentStep['type'];
+                            const label =
+                                tool === 'rag_search' ? `Searching your notes for "${event.query}"` :
+                                    tool === 'web_search' ? `Web searching for "${event.query}"` :
+                                        `Running ${tool}…`;
+                            const stepId = `${tool}-${Date.now()}`;
+                            stepMap.set(tool, stepId);
+                            updateSteps(aiMsgId, prev => [
+                                ...prev,
+                                { id: stepId, type: tool, status: 'running', label },
+                            ]);
+                            break;
+                        }
+
+                        case 'tool_result': {
+                            const tool = event.tool as string;
+                            const stepId = stepMap.get(tool);
+                            if (!stepId) break;
+                            let detail = '';
+                            if (tool === 'rag_search') {
+                                detail = event.has_context
+                                    ? `Found ${event.hits} relevant chunk${event.hits !== 1 ? 's' : ''} in your documents`
+                                    : 'No matching content found in your documents';
+                            } else if (tool === 'web_search') {
+                                detail = `Retrieved ${event.results} web result${event.results !== 1 ? 's' : ''}`;
+                            }
+                            updateSteps(aiMsgId, prev =>
+                                prev.map(s => {
+                                    if (s.id !== stepId) return s;
+                                    const updated: AgentStep = { ...s, status: 'done', detail };
+                                    if (tool === 'rag_search' && typeof event.ragas_score === 'number') {
+                                        updated.ragas = {
+                                            score: event.ragas_score,
+                                            context_precision: event.ragas_context_precision ?? 0,
+                                            faithfulness: event.ragas_faithfulness ?? 0,
+                                            verdict: event.ragas_verdict ?? '',
+                                        };
+                                    }
+                                    return updated;
+                                })
+                            );
+                            break;
+                        }
+
+                        case 'token': {
+                            streamedText += event.content;
+                            updateText(aiMsgId, streamedText);
+                            break;
+                        }
+
+                        case 'done': {
+                            const finalText = event.full_text || streamedText;
+                            updateText(aiMsgId, finalText);
+                            saveMessageToDB('assistant', finalText);
+                            updateSteps(aiMsgId, prev =>
+                                prev.map(s => s.status === 'running' ? { ...s, status: 'done', detail: s.detail || 'Completed' } : s)
+                            );
+                            break;
+                        }
+
+                        case 'error': {
+                            updateText(aiMsgId, `⚠ Error: ${event.detail}`);
+                            updateSteps(aiMsgId, prev =>
+                                prev.map(s => s.status === 'running' ? { ...s, status: 'error' } : s)
+                            );
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (err: any) {
+            if (err.name !== 'AbortError') {
+                console.error('Chat error:', err);
+                updateText(aiMsgId, 'Sorry, there was an error connecting to the server.');
+                updateSteps(aiMsgId, prev => prev.map(s => s.status === 'running' ? { ...s, status: 'error' } : s));
+            }
         } finally {
             setStatus('ready');
+            abortRef.current = null;
         }
     };
 
+    /* handle Enter to submit, Shift+Enter for newline */
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSubmit(e as any);
+        }
+    };
+
+    const isStreaming = status === 'thinking';
 
     return (
-        <div className="min-h-screen bg-base flex flex-col font-sans text-primary">
-            {/* Header */}
-            <header className="border-b border-subtle bg-surface px-6 py-4 flex items-center justify-between">
-                <h1 className="text-xl font-semibold tracking-tight">StudyBot Chat</h1>
-                <div className="text-sm text-muted">
-                    {status === 'ready' ? 'Ready' : 'Thinking...'}
+        <div className="min-h-screen bg-base flex flex-col font-sans text-primary" style={{ backgroundImage: 'radial-gradient(at 60% 0%, rgba(124,58,237,0.08) 0px, transparent 55%)' }}>
+
+            {/* ── Header */}
+            <header className="border-b border-subtle/60 bg-surface/80 backdrop-blur-xl px-6 py-0 sticky top-0 z-20 shadow-[0_1px_0_rgba(255,255,255,0.04)]">
+                <div className="max-w-3xl mx-auto flex items-center h-14">
+                    {/* Left — logo */}
+                    <div className="flex items-center gap-2.5 w-40">
+                        <div className="w-7 h-7 rounded-lg bg-accent/20 flex items-center justify-center shadow-glow-sm">
+                            <span className="text-accent-light text-xs">✦</span>
+                        </div>
+                        <span className="text-white font-semibold text-sm tracking-tight">StudyBot</span>
+                    </div>
+
+                    {/* Centre — subject / chapter breadcrumb */}
+                    <div className="flex-1 flex flex-col items-center justify-center leading-tight">
+                        <span className="text-white font-semibold text-sm tracking-tight">{subjectName}</span>
+                        {chapterName && chapterName !== 'null' && (
+                            <span className="text-muted text-[11px] mt-0.5">Chapter: {chapterName}</span>
+                        )}
+                    </div>
+
+                    {/* Right — status pill */}
+                    <div className="w-40 flex justify-end">
+                        {isStreaming && (
+                            <div className="flex items-center gap-1.5 text-[11px] text-accent-light bg-accent/10 border border-accent/20 px-3 py-1 rounded-full">
+                                <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                                </svg>
+                                Thinking…
+                            </div>
+                        )}
+                    </div>
                 </div>
             </header>
 
-            {/* Messages Area */}
-            <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+            {/* ── Messages */}
+            <main className="flex-1 overflow-y-auto p-4 sm:p-6">
                 {messages.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-muted">
-                        <p className="text-sm">No messages yet. Start a conversation!</p>
+                    <div className="h-full flex flex-col items-center justify-center text-muted gap-4 py-24">
+                        <div className="w-16 h-16 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center text-2xl shadow-glow-md">✦</div>
+                        <div className="text-center space-y-1">
+                            <p className="text-white font-medium text-sm">Ask anything about your notes</p>
+                            <p className="text-muted text-xs">{subjectName}{chapterName && chapterName !== 'null' ? ` · ${chapterName}` : ''}</p>
+                        </div>
                     </div>
                 ) : (
-                    <div className="max-w-4xl mx-auto w-full space-y-6">
+                    <div className="max-w-3xl mx-auto w-full space-y-6">
                         {messages.map((message, index) => (
                             <div
                                 key={index}
-                                className={`flex flex-col max-w-[80%] ${message.role === 'user' ? 'ml-auto items-end' : 'mr-auto items-start'
-                                    }`}
+                                className={`flex flex-col ${message.role === 'user' ? 'items-end' : 'items-start'} animate-fade-up`}
+                                style={{ animationDelay: `${index * 30}ms` }}
                             >
-                                <span className="text-xs font-medium text-muted mb-1.5 px-1">
+                                <span className="text-[11px] font-medium text-muted-2 mb-1.5 px-1">
                                     {message.role === 'user' ? 'You' : 'StudyBot'}
                                 </span>
+
+                                {message.role === 'assistant' && message.steps && message.steps.length > 0 && (
+                                    <div className="w-full">
+                                        <ResearchPanel steps={message.steps} />
+                                    </div>
+                                )}
+
                                 <div
-                                    className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${message.role === 'user'
-                                            ? 'bg-accent text-white rounded-br-sm'
-                                            : 'bg-surface border border-subtle text-primary rounded-bl-sm'
-                                        }`}
+                                    className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+                                        message.role === 'user'
+                                            ? 'bg-accent text-white rounded-br-sm max-w-[80%] shadow-glow-sm'
+                                            : 'bg-surface-2 border border-subtle/60 text-primary rounded-bl-sm w-full max-w-full shadow-card'
+                                    }`}
                                 >
-                                    {message.parts.map((part, partIndex) =>
-                                        part.type === 'text' ? (
-                                            message.role === 'user' ? (
-                                                <span key={partIndex}>{part.text}</span>
-                                            ) : (
-                                                <ReactMarkdown
-                                                    key={partIndex}
-                                                    components={{
-                                                        code({ className, children }) {
-                                                            const language = className?.replace('language-', '') || 'text'
-                                                            return (
-                                                                <SyntaxHighlighter style={oneDark} language={language} PreTag="div">
-                                                                    {String(children).trim()}
-                                                                </SyntaxHighlighter>
-                                                            )
-                                                        },
-                                                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                                                        ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
-                                                        ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
-                                                        strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
-                                                        h1: ({ children }) => <h1 className="text-lg font-bold text-white mb-2">{children}</h1>,
-                                                        h2: ({ children }) => <h2 className="text-base font-bold text-white mb-2">{children}</h2>,
-                                                        h3: ({ children }) => <h3 className="text-sm font-bold text-white mb-1">{children}</h3>,
-                                                    }}
-                                                >
-                                                    {part.text}
+                                    {message.role === 'user' ? (
+                                        <span>{message.parts[0].text}</span>
+                                    ) : (
+                                        <>
+                                            {message.parts[0].text ? (
+                                                <ReactMarkdown components={MarkdownComponents}>
+                                                    {message.parts[0].text}
                                                 </ReactMarkdown>
-                                            )
-                                        ) : null
+                                            ) : (
+                                                status === 'thinking' && index === messages.length - 1 && (
+                                                    <span className="text-muted text-xs flex items-center gap-1.5">
+                                                        <svg className="animate-spin w-3 h-3 text-accent-light" viewBox="0 0 24 24" fill="none">
+                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                                                        </svg>
+                                                        Thinking…
+                                                    </span>
+                                                )
+                                            )}
+                                            {status === 'thinking' && index === messages.length - 1 && message.parts[0].text && (
+                                                <BlinkingCursor />
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             </div>
@@ -244,59 +499,44 @@ export default function ChatApp() {
                 )}
             </main>
 
-            {/* Input Area */}
-            <footer className="border-t border-subtle bg-surface p-4">
-                <div className="max-w-4xl mx-auto">
-                    <form onSubmit={handleSubmit} className="flex gap-3">
-                        <input
-                            value={input}
-                            onChange={e => setInput(e.target.value)}
-                            disabled={status !== 'ready'}
-                            placeholder="Ask me anything about your notes..."
-                            className="flex-1 rounded-xl bg-base border border-subtle px-4 py-3 text-sm text-primary focus:border-accent outline-none transition-colors"
-                        />
-                        <div className="relative" ref={dropdownRef}>
-                            <button
-                                type="button"
-                                onClick={() => setShowDropdown(!showDropdown)}
+            {/* ── Input */}
+            <footer className="border-t border-subtle/60 bg-surface/80 backdrop-blur-xl p-4">
+                <div className="max-w-3xl mx-auto">
+                    <form onSubmit={handleSubmit} className="flex gap-3 items-end">
+                        <div className="flex-1 relative">
+                            <textarea
+                                ref={textareaRef}
+                                rows={1}
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                onKeyDown={handleKeyDown}
                                 disabled={status !== 'ready'}
-                                className="h-full px-6 py-3 rounded-xl bg-surface border border-subtle hover:border-accent text-primary text-sm font-medium transition-all flex items-center gap-2"
-                            >
-                                <span>{choice === 'explain' ? '✨ Explain' : '❓ Q/A'}</span>
-                                <span className={`text-[10px] transition-transform ${showDropdown ? 'rotate-180' : ''}`}>▲</span>
-                            </button>
-
-                            {showDropdown && (
-                                <div className="absolute bottom-full left-0 mb-2 w-72 bg-surface border border-subtle rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                                    <button
-                                        type="button"
-                                        onClick={() => { setChoice('explain'); setShowDropdown(false); }}
-                                        className={`w-full text-left p-3 rounded-lg transition-colors ${choice === 'explain' ? 'bg-accent/10 border border-accent/20' : 'hover:bg-base'}`}
-                                    >
-                                        <div className="font-medium text-sm text-primary">Explain</div>
-                                        <div className="text-[11px] text-muted mt-0.5">Choose it if you want explanation from your contents</div>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => { setChoice('qa'); setShowDropdown(false); }}
-                                        className={`w-full text-left p-3 rounded-lg mt-1 transition-colors ${choice === 'qa' ? 'bg-accent/10 border border-accent/20' : 'hover:bg-base'}`}
-                                    >
-                                        <div className="font-medium text-sm text-primary">Q/A</div>
-                                        <div className="text-[11px] text-muted mt-0.5">Select it if you want question answers from your materials</div>
-                                    </button>
-                                </div>
-                            )}
+                                placeholder="Ask me anything about your notes…"
+                                className="w-full resize-none rounded-2xl bg-surface-2 border border-subtle hover:border-subtle-2 focus:border-accent/60 px-4 py-3 text-sm text-primary focus:outline-none transition-colors placeholder:text-muted-2 leading-relaxed overflow-hidden"
+                                style={{ minHeight: '48px', maxHeight: '160px' }}
+                            />
                         </div>
+
                         <button
                             type="submit"
                             disabled={status !== 'ready' || !input.trim()}
-                            className="px-6 py-3 rounded-xl bg-accent hover:bg-accent-hover disabled:opacity-50 text-white text-sm font-medium transition-colors"
+                            className="flex-shrink-0 w-11 h-11 rounded-xl bg-accent hover:bg-accent-hover disabled:opacity-30 text-white transition-all flex items-center justify-center shadow-glow-sm hover:shadow-glow-md disabled:shadow-none"
                         >
-                            Send
+                            {isStreaming ? (
+                                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                                </svg>
+                            ) : (
+                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                                </svg>
+                            )}
                         </button>
                     </form>
+                    <p className="text-center text-[10px] text-muted-2 mt-2">Press Enter to send · Shift+Enter for newline</p>
                 </div>
             </footer>
         </div>
-    )
+    );
 }

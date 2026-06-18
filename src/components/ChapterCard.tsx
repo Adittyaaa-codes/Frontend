@@ -5,9 +5,11 @@ import { api } from '../services/api'
 interface ChapterCardProps {
   _id: string
   chName: string
+  subjectId: string
+  subjectName?: string
 }
 
-function ChapterCard({ _id, chName }: ChapterCardProps) {
+function ChapterCard({ _id, chName, subjectId, subjectName = '' }: ChapterCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(chName)
 
@@ -35,13 +37,13 @@ function ChapterCard({ _id, chName }: ChapterCardProps) {
   }
 
   return (
-    <div className="flex items-center justify-between bg-base px-3 py-2 rounded-lg border border-subtle hover:border-accent transition-colors group">
+    <div className="flex items-center justify-between bg-base px-3 py-2.5 rounded-xl border border-subtle hover:border-accent/50 transition-colors group">
       <div className="flex-1 mr-4">
         {isEditing ? (
           <input
             value={editedName}
             onChange={(e) => setEditedName(e.target.value)}
-            className="w-full bg-surface border border-subtle rounded px-2 py-0.5 text-primary text-sm focus:border-accent outline-none"
+            className="w-full bg-surface border border-subtle rounded-lg px-2 py-0.5 text-primary text-sm focus:border-accent outline-none"
             autoFocus
           />
         ) : (
@@ -53,20 +55,20 @@ function ChapterCard({ _id, chName }: ChapterCardProps) {
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={handleEdit}
-            className="text-[10px] text-muted hover:text-accent border border-subtle px-1.5 py-0.5 rounded transition-colors"
+            className="text-[10px] text-muted hover:text-accent-light border border-subtle px-1.5 py-0.5 rounded transition-colors"
           >
             {isEditing ? 'Save' : 'Edit'}
           </button>
           <button
             onClick={handleDelete}
-            className="text-[10px] text-muted hover:text-red-400 border border-subtle px-1.5 py-0.5 rounded transition-colors"
+            className="text-[10px] text-muted hover:text-danger border border-subtle px-1.5 py-0.5 rounded transition-colors"
           >
             Delete
           </button>
         </div>
         <Link
-          to={`/chat/${_id}`}
-          className="text-xs font-medium text-accent bg-accent/10 hover:bg-accent/20 px-3 py-1 rounded-lg transition-colors whitespace-nowrap"
+          to={`/chat/${subjectId}?chapterId=${_id}&subjectName=${encodeURIComponent(subjectName)}&chapterName=${encodeURIComponent(chName)}`}
+          className="text-xs font-medium text-accent-light bg-accent/10 hover:bg-accent/20 border border-accent/20 px-3 py-1 rounded-lg transition-colors whitespace-nowrap"
         >
           Open Chat →
         </Link>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { api } from '../services/api'
 import type { ApiResponse, Chapter } from '../types/interface'
 // import { Link } from 'react-router-dom'
@@ -21,6 +21,11 @@ function SubjectCard({ _id, subName, desc, chapters }: SubjectCardProps) {
   const [showAddChapter, setShowAddChapter] = useState(false)
   const [newChName, setNewChName] = useState('')
   const [isAddingChapter, setIsAddingChapter] = useState(false)
+  const [chapterCount, setChapterCount] = useState(chapters.length)
+
+  useEffect(() => {
+    setChapterCount(chapters.length)
+  }, [chapters.length])
 
   const handleToggle = async () => {
     if (isOpen) {
@@ -79,6 +84,7 @@ function SubjectCard({ _id, subName, desc, chapters }: SubjectCardProps) {
       setShowAddChapter(false)
       // Refresh list
       setChapterList(prev => [...prev, data.data])
+      setChapterCount(prev => prev + 1)
     } catch (error) {
       console.error("Failed to add chapter:", error)
     } finally {
@@ -87,7 +93,7 @@ function SubjectCard({ _id, subName, desc, chapters }: SubjectCardProps) {
   }
 
   return (
-    <div className="bg-surface border border-subtle rounded-xl p-5 hover:border-accent transition-colors">
+    <div className="bg-surface-2 border border-subtle rounded-2xl p-5 hover:border-accent/40 transition-all duration-200 shadow-card hover:shadow-card-hover group">
       {/* Top row */}
       <div className="flex items-start justify-between">
         <div className="flex-1 mr-4">
@@ -110,8 +116,8 @@ function SubjectCard({ _id, subName, desc, chapters }: SubjectCardProps) {
               <p className="text-sm text-muted mb-4">{desc || "No description"}</p>
             </>
           )}
-          <div className="inline-flex items-center text-xs font-medium text-accent bg-accent/10 px-2.5 py-1 rounded-full">
-            {chapters.length} chapters
+          <div className="inline-flex items-center text-xs font-medium text-accent-light bg-accent/10 border border-accent/20 px-2.5 py-1 rounded-full">
+            {chapterCount} {chapterCount === 1 ? 'chapter' : 'chapters'}
           </div>
         </div>
 
@@ -120,20 +126,20 @@ function SubjectCard({ _id, subName, desc, chapters }: SubjectCardProps) {
           <div className="flex gap-2 justify-end">
             <button
                onClick={handleEdit}
-               className="text-[10px] text-muted hover:text-accent border border-subtle hover:border-accent px-2 py-1 rounded transition-colors"
+               className="text-[10px] text-muted hover:text-accent-light border border-subtle hover:border-accent/40 px-2 py-1 rounded-lg transition-colors"
             >
               {isEditing ? 'Save' : 'Edit'}
             </button>
             <button
                onClick={handleDelete}
-               className="text-[10px] text-muted hover:text-red-400 border border-subtle hover:border-red-400 px-2 py-1 rounded transition-colors"
+               className="text-[10px] text-muted hover:text-danger border border-subtle hover:border-danger/40 px-2 py-1 rounded-lg transition-colors"
             >
               Delete
             </button>
           </div>
           <button
             onClick={handleToggle}
-            className="text-xs text-muted hover:text-primary border border-subtle hover:border-accent px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+            className="text-xs text-muted hover:text-primary border border-subtle hover:border-accent/40 px-3 py-1.5 rounded-xl transition-colors whitespace-nowrap"
           >
             {isOpen ? '▲ Hide' : '▼ View Chapters'}
           </button>
@@ -177,12 +183,14 @@ function SubjectCard({ _id, subName, desc, chapters }: SubjectCardProps) {
           ) : chapterList.length === 0 ? (
             <p className="text-xs text-muted">No chapters found.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {chapterList.map((chapter) => (
                 <ChapterCard
                   key={chapter._id}
                   _id={chapter._id}
                   chName={chapter.chName}
+                  subjectId={_id}
+                  subjectName={subName}
                 />
               ))}
             </div>
