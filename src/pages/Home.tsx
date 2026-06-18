@@ -11,7 +11,7 @@ interface Subject {
   createdAt?: string
 }
 
-export default function Home() {
+export default function Home({ onMenuOpen }: { onMenuOpen?: () => void }) {
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [showAddForm, setShowAddForm] = useState(false)
   const [subName, setSubName] = useState('')
@@ -55,6 +55,20 @@ export default function Home() {
       className="min-h-screen bg-base flex flex-col items-center px-4 font-sans text-primary pb-16"
       style={{ backgroundImage: 'radial-gradient(at 50% 0%, rgba(124,58,237,0.1) 0px, transparent 60%)' }}
     >
+      {/* Mobile top bar */}
+      <div className="md:hidden w-full flex items-center justify-between pt-4 pb-2">
+        <button
+          onClick={onMenuOpen}
+          className="p-2 rounded-lg text-muted hover:text-primary hover:bg-surface transition-colors"
+          aria-label="Open menu"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <span className="text-white font-bold text-lg">Study<span className="text-accent">Bot</span></span>
+        <div className="w-9" />
+      </div>
       {/* ── Hero */}
       <div className="w-full max-w-2xl pt-16 pb-10 text-center">
         {/* Glow orb */}

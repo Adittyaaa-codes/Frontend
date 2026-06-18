@@ -151,7 +151,7 @@ const MarkdownComponents = {
 }
 
 /* ─────────────────────────────────────────────────────────── main */
-export default function ChatApp() {
+export default function ChatApp({ onMenuOpen }: { onMenuOpen?: () => void }) {
     const { subjectId } = useParams<{ subjectId: string }>();
     const [searchParams] = useSearchParams();
     const chapterId = searchParams.get('chapterId');
@@ -399,10 +399,21 @@ export default function ChatApp() {
         <div className="min-h-screen bg-base flex flex-col font-sans text-primary" style={{ backgroundImage: 'radial-gradient(at 60% 0%, rgba(124,58,237,0.08) 0px, transparent 55%)' }}>
 
             {/* ── Header */}
-            <header className="border-b border-subtle/60 bg-surface/80 backdrop-blur-xl px-6 py-0 sticky top-0 z-20 shadow-[0_1px_0_rgba(255,255,255,0.04)]">
-                <div className="max-w-3xl mx-auto flex items-center h-14">
-                    {/* Left — logo */}
-                    <div className="flex items-center gap-2.5 w-40">
+            <header className="border-b border-subtle/60 bg-surface/80 backdrop-blur-xl px-4 sm:px-6 py-0 sticky top-0 z-20 shadow-[0_1px_0_rgba(255,255,255,0.04)]">
+                <div className="max-w-3xl mx-auto flex items-center h-14 gap-2">
+                    {/* Mobile hamburger */}
+                    <button
+                        onClick={onMenuOpen}
+                        className="md:hidden flex-shrink-0 p-2 rounded-lg text-muted hover:text-primary hover:bg-base transition-colors"
+                        aria-label="Open menu"
+                    >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+
+                    {/* Left — logo (hidden on mobile to save space) */}
+                    <div className="hidden sm:flex items-center gap-2.5 w-36">
                         <div className="w-7 h-7 rounded-lg bg-accent/20 flex items-center justify-center shadow-glow-sm">
                             <span className="text-accent-light text-xs">✦</span>
                         </div>
@@ -410,22 +421,22 @@ export default function ChatApp() {
                     </div>
 
                     {/* Centre — subject / chapter breadcrumb */}
-                    <div className="flex-1 flex flex-col items-center justify-center leading-tight">
-                        <span className="text-white font-semibold text-sm tracking-tight">{subjectName}</span>
+                    <div className="flex-1 flex flex-col items-center justify-center leading-tight min-w-0">
+                        <span className="text-white font-semibold text-sm tracking-tight truncate max-w-full">{subjectName}</span>
                         {chapterName && chapterName !== 'null' && (
-                            <span className="text-muted text-[11px] mt-0.5">Chapter: {chapterName}</span>
+                            <span className="text-muted text-[11px] mt-0.5 truncate max-w-full">Ch: {chapterName}</span>
                         )}
                     </div>
 
                     {/* Right — status pill */}
-                    <div className="w-40 flex justify-end">
+                    <div className="flex-shrink-0 flex justify-end">
                         {isStreaming && (
-                            <div className="flex items-center gap-1.5 text-[11px] text-accent-light bg-accent/10 border border-accent/20 px-3 py-1 rounded-full">
+                            <div className="flex items-center gap-1.5 text-[11px] text-accent-light bg-accent/10 border border-accent/20 px-2.5 py-1 rounded-full">
                                 <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                                 </svg>
-                                Thinking…
+                                <span className="hidden xs:inline">Thinking…</span>
                             </div>
                         )}
                     </div>
