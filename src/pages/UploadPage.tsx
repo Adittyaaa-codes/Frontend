@@ -57,35 +57,6 @@ export default function UploadPage({ onMenuOpen }: { onMenuOpen?: () => void }) 
     setFiles(prev => prev.filter((_, i) => i !== index))
   }
 
-  const uploadWithRetry = async (
-    url: string,
-    formData: FormData,
-    maxRetries = 3
-  ) => {
-    let attempt = 0;
-    while (attempt < maxRetries) {
-      try {
-        return await api.post(url, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          onUploadProgress: (progressEvent) => {
-            const percentCompleted = Math.round(
-              (progressEvent.loaded * 100) / (progressEvent.total || 1)
-            );
-            setProgress(percentCompleted);
-          },
-        });
-      } catch (err: any) {
-        if (err.response?.status === 429 && attempt < maxRetries - 1) {
-          const delay = 3000 * Math.pow(2, attempt); // 3s, 6s, 12s
-          setMessage(`Server is busy. Retrying in ${delay / 1000}s... (attempt ${attempt + 2}/${maxRetries})`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          attempt++;
-        } else {
-          throw err;
-        }
-      }
-    }
-  };
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -95,35 +66,81 @@ export default function UploadPage({ onMenuOpen }: { onMenuOpen?: () => void }) 
       return
     }
 
-    const formData = new FormData()
-    files.forEach(file => formData.append('files', file))
-    formData.append('subject', selectedSubject)
-    formData.append('chapter', selectedChapter)
+    const token = localStorage.getItem('accessToken')
+    if (!token) {
+      setMessage('You are not logged in. Please sign in again.')
+      setStatus('error')
+      return
+    }
+
+    const AI_URL = import.meta.env.VITE_AI_URL
+    if (!AI_URL) {
+      setMessage('RAG server URL is not configured.')
+      setStatus('error')
+      return
+    }
+
+    setStatus('uploading')
+    setProgress(0)
+    setMessage('')
 
     try {
-      setStatus('uploading')
-      setProgress(20)
-      
-      const response = await uploadWithRetry(
-        `/upload/upload_docs`,
-        formData
-      );
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        setMessage(`Indexing ${file.name} (${i + 1}/${files.length})…`)
+        setProgress(Math.round(((i) / files.length) * 90))
 
-      if (response?.data.success) {
-        setStatus('success')
-        setMessage('Your materials have been successfully indexed and are ready for study!')
-        setFiles([])
-        setSelectedSubject('')
-        setSelectedChapter('')
+        // Build form data for this single file
+        const formData = new FormData()
+        formData.append('file', file)          // FastAPI expects field name 'file'
+        formData.append('subject', selectedSubject)
+        formData.append('chapter', selectedChapter)
+
+        // Call FastAPI /index directly
+        const res = await fetch(`${AI_URL}/index`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            // Do NOT set Content-Type — browser sets it automatically with boundary for multipart
+          },
+          body: formData,
+        })
+
+        if (!res.ok) {
+          let errDetail = `Failed to index "${file.name}" (HTTP ${res.status})`
+          try {
+            const errJson = await res.json()
+            errDetail = errJson.detail || errJson.message || errDetail
+          } catch { /* ignore parse errors */ }
+          throw new Error(errDetail)
+        }
+
+        // Also save document record in Node backend for MongoDB tracking
+        try {
+          await api.post('/upload/save-doc', {
+            fileName: file.name,
+            fileSize: file.size,
+            mimeType: file.type,
+            subject: selectedSubject,
+            chapter: selectedChapter,
+          })
+        } catch {
+          // Non-critical — indexing succeeded, just logging failed
+          console.warn('Could not save doc record to MongoDB, continuing...')
+        }
       }
+
+      setProgress(100)
+      setStatus('success')
+      setMessage('Your materials have been successfully indexed and are ready for study!')
+      setFiles([])
+      setSelectedSubject('')
+      setSelectedChapter('')
+
     } catch (err: any) {
-      console.error(err)
+      console.error('Upload error:', err)
       setStatus('error')
-      if (err.response?.status === 429) {
-        setMessage('Server is temporarily overloaded. Please wait a minute and try again.')
-      } else {
-        setMessage(err.response?.data?.message || 'Upload failed. Please try again.')
-      }
+      setMessage(err.message || 'Upload failed. Please try again.')
     }
   }
 
