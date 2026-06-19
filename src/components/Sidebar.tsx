@@ -1,6 +1,7 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { Home, Upload, LogOut, User, UserPlus, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { Home, Upload, LogOut, User, UserPlus, ChevronLeft, ChevronRight, X, Zap } from 'lucide-react'
+import { api } from '../services/api'
 
 interface SidebarProps {
   mobileSidebarOpen: boolean
@@ -12,11 +13,28 @@ export default function Sidebar({ mobileSidebarOpen, onMobileClose }: SidebarPro
   const location = useLocation()
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [tokensUsed, setTokensUsed] = useState(0)
+  const [tokenLimit, setTokenLimit] = useState(500000)
 
   useEffect(() => {
-    const user = localStorage.getItem('user')
-    setIsLoggedIn(!!user)
-  }, [location])
+    const userStr = localStorage.getItem('user')
+    setIsLoggedIn(!!userStr)
+
+    if (userStr) {
+      const fetchTokens = async () => {
+        try {
+          const { data } = await api.get('/users/me')
+          if (data?.data) {
+            setTokensUsed(data.data.tokensUsed || 0)
+            setTokenLimit(data.data.tokenLimit || 500000)
+          }
+        } catch (error) {
+          console.error("Failed to fetch token usage", error)
+        }
+      }
+      fetchTokens()
+    }
+  }, [location.pathname])
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -82,6 +100,26 @@ export default function Sidebar({ mobileSidebarOpen, onMobileClose }: SidebarPro
             )
           })}
         </nav>
+
+        {/* Token Progress Section (Desktop) */}
+        {isLoggedIn && !isCollapsed && (
+          <div className="px-5 py-4 border-t border-subtle bg-base/30">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-primary mb-2">
+              <Zap size={14} className="text-accent" />
+              <span>AI Token Usage</span>
+            </div>
+            <div className="flex justify-between text-[10px] text-muted mb-1.5 font-medium">
+              <span>{tokensUsed.toLocaleString()}</span>
+              <span>{tokenLimit.toLocaleString()}</span>
+            </div>
+            <div className="h-1.5 w-full bg-surface rounded-full overflow-hidden border border-subtle">
+              <div 
+                className={`h-full transition-all duration-500 ${tokensUsed >= tokenLimit ? 'bg-red-500' : 'bg-accent'}`}
+                style={{ width: `${Math.min((tokensUsed / tokenLimit) * 100, 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Auth section */}
         <div className="p-4 border-t border-subtle space-y-2">
@@ -157,6 +195,26 @@ export default function Sidebar({ mobileSidebarOpen, onMobileClose }: SidebarPro
             )
           })}
         </nav>
+
+        {/* Token Progress Section (Mobile) */}
+        {isLoggedIn && (
+          <div className="px-5 py-4 border-t border-subtle bg-base/30">
+            <div className="flex items-center gap-1.5 text-sm font-semibold text-primary mb-2">
+              <Zap size={16} className="text-accent" />
+              <span>AI Token Usage</span>
+            </div>
+            <div className="flex justify-between text-xs text-muted mb-2 font-medium">
+              <span>{tokensUsed.toLocaleString()} used</span>
+              <span>{tokenLimit.toLocaleString()} max</span>
+            </div>
+            <div className="h-2 w-full bg-surface rounded-full overflow-hidden border border-subtle">
+              <div 
+                className={`h-full transition-all duration-500 ${tokensUsed >= tokenLimit ? 'bg-red-500' : 'bg-accent'}`}
+                style={{ width: `${Math.min((tokensUsed / tokenLimit) * 100, 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Mobile auth section */}
         <div className="p-4 border-t border-subtle space-y-2">
