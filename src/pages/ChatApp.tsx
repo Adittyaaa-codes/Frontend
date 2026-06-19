@@ -360,6 +360,7 @@ export default function ChatApp({ onMenuOpen }: { onMenuOpen?: () => void }) {
                             updateSteps(aiMsgId, prev =>
                                 prev.map(s => s.status === 'running' ? { ...s, status: 'done', detail: s.detail || 'Completed' } : s)
                             );
+                            window.dispatchEvent(new Event('tokens-updated'));
                             break;
                         }
 

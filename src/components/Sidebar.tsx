@@ -16,23 +16,36 @@ export default function Sidebar({ mobileSidebarOpen, onMobileClose }: SidebarPro
   const [tokensUsed, setTokensUsed] = useState(0)
   const [tokenLimit, setTokenLimit] = useState(500000)
 
+  const fetchTokens = async () => {
+    const userStr = localStorage.getItem('user')
+    if (userStr) {
+      try {
+        const { data } = await api.get('/users/me')
+        if (data?.data) {
+          setTokensUsed(data.data.tokensUsed || 0)
+          setTokenLimit(data.data.tokenLimit || 500000)
+        }
+      } catch (error) {
+        console.error("Failed to fetch token usage", error)
+      }
+    }
+  }
+
   useEffect(() => {
     const userStr = localStorage.getItem('user')
     setIsLoggedIn(!!userStr)
 
-    if (userStr) {
-      const fetchTokens = async () => {
-        try {
-          const { data } = await api.get('/users/me')
-          if (data?.data) {
-            setTokensUsed(data.data.tokensUsed || 0)
-            setTokenLimit(data.data.tokenLimit || 500000)
-          }
-        } catch (error) {
-          console.error("Failed to fetch token usage", error)
-        }
-      }
-      fetchTokens()
+    fetchTokens()
+
+    const handleTokensUpdated = () => {
+      // Fetch after a short timeout to give the server database write a moment to settle
+      setTimeout(fetchTokens, 500)
+    }
+
+    window.addEventListener('tokens-updated', handleTokensUpdated)
+
+    return () => {
+      window.removeEventListener('tokens-updated', handleTokensUpdated)
     }
   }, [location.pathname])
 
